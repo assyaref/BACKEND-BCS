@@ -1,6 +1,6 @@
 // =====================================================
-// Building Care System Enterprise v3.1
-// Authentication Module
+// Building Care System Enterprise v3.3 Stable
+// Auth.gs
 // Radiant Group Duri
 // =====================================================
 
@@ -11,31 +11,49 @@ function login(data) {
 
   try {
 
-    const nik      = String(data.nik || "").trim();
+    data = data || {};
+
+    const nik = String(data.nik || "").trim();
     const password = String(data.password || "").trim();
 
     if (!nik || !password) {
       return failed("NIK dan Password wajib diisi.");
     }
 
-    // Find user by NIK (column B)
+    // ==========================
+    // FIND USER
+    // ==========================
+
     const user = findUserByNik(nik);
 
     if (!user) {
+
       saveActivity(nik, "LOGIN_FAILED", "User tidak ditemukan");
+
       return failed("NIK atau Password salah.");
+
     }
 
-    // Cek status user ACTIVE
+    // ==========================
+    // STATUS
+    // ==========================
+
     if (String(user.status).toUpperCase() !== "ACTIVE") {
+
       saveActivity(nik, "LOGIN_FAILED", "Akun tidak aktif");
-      return failed("Akun Anda tidak aktif. Hubungi Administrator.");
+
+      return failed("Akun tidak aktif.");
+
     }
 
-    // Support Plain Text + SHA256 (Auto Migration Ready)
+    // ==========================
+    // PASSWORD
+    // ==========================
 
     const passwordMatch =
+
       user.password === password ||
+
       user.password === hashPassword(password);
 
     if (!passwordMatch) {
@@ -46,20 +64,23 @@ function login(data) {
 
     }
 
-    // Auto migrate plain text ke SHA256
-    // Column D = index 4 (1-based)
+    // ==========================
+    // AUTO MIGRATION SHA256
+    // ==========================
 
     if (user.password === password) {
 
-      const sheet = getSheet(SHEET.USERS);
+      getSheet(SHEET.USERS)
 
-      sheet.getRange(user.row, 4).setValue(
-        hashPassword(password)
-      );
+        .getRange(user.row, 4)
+
+        .setValue(hashPassword(password));
 
     }
 
-    // Generate Session
+    // ==========================
+    // TOKEN
+    // ==========================
 
     const token = generateToken();
 
@@ -77,7 +98,7 @@ function login(data) {
 
       "LOGIN",
 
-      "Login berhasil via NIK: " + nik
+      "Login berhasil"
 
     );
 
@@ -85,17 +106,15 @@ function login(data) {
 
       email: user.email,
 
-      nik:   user.nik,
+      nik: user.nik,
 
-      nama:  user.nama,
+      nama: user.nama,
 
-      role:  user.role,
+      role: user.role,
 
       token: token
 
-    },
-
-    "Login berhasil");
+    }, "Login berhasil");
 
   }
 
@@ -109,11 +128,7 @@ function login(data) {
 
     );
 
-    return failed(
-
-      err.toString()
-
-    );
+    return failed(err.toString());
 
   }
 
@@ -126,7 +141,25 @@ function logout(data) {
 
   try {
 
-    const token = data.token || "";
+    data = data || {};
+
+    const token = String(data.token || "");
+
+    if (!token) {
+
+      return failed("Token kosong.");
+
+    }
+
+    if (
+
+      typeof SHEET.USER_SESSION === "undefined"
+
+    ) {
+
+      return success({}, "Logout berhasil");
+
+    }
 
     const sheet = getSheet(
 
@@ -142,15 +175,13 @@ function logout(data) {
 
     for (let i = 1; i < values.length; i++) {
 
-      if (values[i][2] == token) {
+      if (String(values[i][2]) === token) {
 
-        sheet.getRange(
+        sheet
 
-          i + 1,
+          .getRange(i + 1, 8)
 
-          8
-
-        ).setValue("INACTIVE");
+          .setValue("INACTIVE");
 
         saveActivity(
 
@@ -182,11 +213,7 @@ function logout(data) {
 
     );
 
-    return failed(
-
-      err.toString()
-
-    );
+    return failed(err.toString());
 
   }
 
@@ -199,7 +226,29 @@ function verifySession(data) {
 
   try {
 
-    const token = data.token || "";
+    data = data || {};
+
+    const token = String(data.token || "");
+
+    if (!token) {
+
+      return failed("Session Expired");
+
+    }
+
+    if (
+
+      typeof SHEET.USER_SESSION === "undefined"
+
+    ) {
+
+      return success({
+
+        valid: true
+
+      });
+
+    }
 
     const sheet = getSheet(
 
@@ -217,21 +266,17 @@ function verifySession(data) {
 
       if (
 
-        values[i][2] == token &&
+        String(values[i][2]) === token &&
 
-        values[i][7] == "ACTIVE"
+        String(values[i][7]) === "ACTIVE"
 
       ) {
 
-        // Update Last Activity
+        sheet
 
-        sheet.getRange(
+          .getRange(i + 1, 5)
 
-          i + 1,
-
-          5
-
-        ).setValue(now());
+          .setValue(now());
 
         return success({
 
@@ -257,11 +302,7 @@ function verifySession(data) {
 
     );
 
-    return failed(
-
-      err.toString()
-
-    );
+    return failed(err.toString());
 
   }
 
@@ -278,30 +319,66 @@ function createSession(
 
 ) {
 
-  const sheet = getSheet(
+  try {
 
-    SHEET.USER_SESSION
+    if (
 
-  );
+      typeof SHEET.USER_SESSION === "undefined"
 
-  sheet.appendRow([
+    ) {
 
-    Utilities.getUuid(),
+      return true;
 
-    email,
+    }
 
-    token,
+    const sheet = getSheet(
 
-    now(),
+      SHEET.USER_SESSION
 
-    now(),
+    );
 
-    now(),
+    sheet.appendRow([
 
-    Session.getActiveUser().getEmail(),
+      Utilities.getUuid(),
 
-    "ACTIVE"
+      email,
 
-  ]);
+      token,
+
+      now(),
+
+      now(),
+
+      now(),
+
+      email,
+
+      "ACTIVE"
+
+    ]);
+
+  }
+
+  catch (err) {
+
+    Logger.log(err);
+
+  }
+
+}
+
+// Test
+function testFindUser(){
+
+  const user = findUserByNik("03233");
+
+  Logger.log(JSON.stringify(user));
+
+}
+function testGetUserSheet(){
+
+  const sheet = getSheet(SHEET.USERS);
+
+  Logger.log(sheet.getName());
 
 }
