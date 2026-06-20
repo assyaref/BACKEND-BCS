@@ -369,3 +369,26 @@ function testNow(){
   Logger.log(now());
 
 }
+
+function testSheet() {
+
+  Logger.log("===== TEST SHEET =====");
+
+  Logger.log(JSON.stringify(SHEET));
+
+  Logger.log("USERS = " + SHEET.USERS);
+
+  Logger.log("REPORT = " + SHEET.REPORT);
+
+  Logger.log("ACTIVITY = " + SHEET.ACTIVITY);
+
+  Logger.log("ERROR_LOG = " + SHEET.ERROR_LOG);
+
+  Logger.log("USER_SESSION = " + SHEET.USER_SESSION);
+
+}
+function testHash() {
+
+  Logger.log(hashPassword("03233"));
+
+}
