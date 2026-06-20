@@ -8,17 +8,42 @@ function getDashboard(data) {
 
   try {
 
-    const TIMEZONE =
-      (typeof CONFIG !== "undefined" && CONFIG.TIMEZONE)
-      || Session.getScriptTimeZone()
-      || "Asia/Jakarta";
+    // ==========================================
+    // TIMEZONE
+    // ==========================================
 
-    const sheet = getSheet("REPORT");
-    const values = sheet.getDataRange().getValues();
+    var TIMEZONE = "Asia/Jakarta";
+
+    if (typeof CONFIG !== "undefined") {
+      if (
+        CONFIG.TIMEZONE &&
+        typeof CONFIG.TIMEZONE === "string"
+      ) {
+        TIMEZONE = CONFIG.TIMEZONE;
+      }
+    }
+
+    // ==========================================
+    // SHEET
+    // ==========================================
+
+    var sheet = getSheet("REPORT");
+
+    if (!sheet) {
+      return failed("Sheet REPORT tidak ditemukan.");
+    }
+
+    var values = sheet.getDataRange().getValues();
+
+    // ==========================================
+    // EMPTY DATA
+    // ==========================================
 
     if (values.length <= 1) {
 
       return success({
+
+        version: "3.3.0",
 
         total: 0,
         ac: 0,
@@ -39,7 +64,8 @@ function getDashboard(data) {
         pendingApproval: 0,
 
         activity: [],
-        monthly: Array(12).fill(0),
+
+        monthly: [0,0,0,0,0,0,0,0,0,0,0,0],
 
         serverTime: now(),
         lastUpdate: now()
@@ -48,126 +74,152 @@ function getDashboard(data) {
 
     }
 
-    const headers = values.shift().map(function (item) {
+    // ==========================================
+    // HEADER
+    // ==========================================
+
+    var headers = values.shift().map(function(item){
+
       return String(item).trim().toLowerCase();
+
     });
 
-    const idx = {
+    var idx = {
 
-      id: headers.indexOf("id"),
-      tanggal: headers.indexOf("tanggal"),
-      lokasi: headers.indexOf("lokasi"),
-      kategori: headers.indexOf("kategori"),
-      status: headers.indexOf("status")
+      id        : headers.indexOf("id"),
+      tanggal   : headers.indexOf("tanggal"),
+      lokasi    : headers.indexOf("lokasi"),
+      kategori  : headers.indexOf("kategori"),
+      status    : headers.indexOf("status")
 
     };
 
-    if (Object.values(idx).some(function (v) {
-      return v < 0;
-    })) {
+    if (
+
+      idx.id < 0 ||
+      idx.tanggal < 0 ||
+      idx.lokasi < 0 ||
+      idx.kategori < 0 ||
+      idx.status < 0
+
+    ){
 
       return failed("Header REPORT tidak sesuai.");
 
     }
 
-    let total = 0;
-    let ac = 0;
-    let listrik = 0;
-    let gedung = 0;
+    // ==========================================
+    // VARIABLE
+    // ==========================================
 
-    let open = 0;
-    let progress = 0;
-    let done = 0;
+    var total = 0;
+    var ac = 0;
+    var listrik = 0;
+    var gedung = 0;
 
-    let todayReport = 0;
+    var open = 0;
+    var progress = 0;
+    var done = 0;
 
-    const monthly = Array(12).fill(0);
+    var todayReport = 0;
 
-    const today = Utilities.formatDate(
+    var monthly = [0,0,0,0,0,0,0,0,0,0,0,0];
+
+    var today = Utilities.formatDate(
+
       new Date(),
-      TIMEZONE,
+      String(TIMEZONE),
       "yyyy-MM-dd"
+
     );
 
-    values.forEach(function (row) {
+    // ==========================================
+    // LOOP
+    // ==========================================
+
+    values.forEach(function(row){
 
       if (!row[idx.id]) return;
 
       total++;
 
-      const kategori =
-        String(row[idx.kategori] || "")
-          .trim()
-          .toUpperCase();
+      var kategori = String(row[idx.kategori] || "")
+        .trim()
+        .toUpperCase();
 
-      const status =
-        String(row[idx.status] || "")
-          .trim()
-          .toUpperCase();
+      var status = String(row[idx.status] || "")
+        .trim()
+        .toUpperCase();
 
-      const tanggal =
-        new Date(row[idx.tanggal]);
+      var tanggal = new Date(row[idx.tanggal]);
 
-      // ======================
       // CATEGORY
-      // ======================
 
-      switch (kategori) {
+      if (kategori === "AC") {
 
-        case "AC":
-          ac++;
-          break;
+        ac++;
 
-        case "LISTRIK":
-          listrik++;
-          break;
+      } else if (kategori === "LISTRIK") {
 
-        case "GEDUNG":
-        case "KONDISI GEDUNG":
-          gedung++;
-          break;
+        listrik++;
+
+      } else {
+
+        gedung++;
 
       }
 
-      // ======================
       // STATUS
-      // ======================
 
-      switch (status) {
+      if (
 
-        case "OPEN":
-        case "WAITING":
-          open++;
-          break;
+        status === "OPEN" ||
+        status === "WAITING"
 
-        case "PROGRESS":
-        case "ON PROGRESS":
-          progress++;
-          break;
+      ){
 
-        case "DONE":
-        case "COMPLETED":
-        case "CLOSED":
-          done++;
-          break;
+        open++;
 
       }
 
-      // ======================
+      else if (
+
+        status === "PROGRESS" ||
+        status === "ON PROGRESS"
+
+      ){
+
+        progress++;
+
+      }
+
+      else if (
+
+        status === "DONE" ||
+        status === "COMPLETED" ||
+        status === "CLOSED"
+
+      ){
+
+        done++;
+
+      }
+
       // DATE
-      // ======================
 
       if (!isNaN(tanggal.getTime())) {
 
         if (
 
           Utilities.formatDate(
+
             tanggal,
-            TIMEZONE,
+            String(TIMEZONE),
             "yyyy-MM-dd"
+
           ) === today
 
-        ) {
+        ){
 
           todayReport++;
 
@@ -179,92 +231,97 @@ function getDashboard(data) {
 
     });
 
-    // ======================
+    // ==========================================
     // RECENT ACTIVITY
-    // ======================
+    // ==========================================
 
-    const activity = values
+    var activity = values
 
-      .filter(function (row) {
+      .filter(function(row){
 
         return row[idx.id];
 
       })
 
-      .sort(function (a, b) {
+      .sort(function(a,b){
 
         return new Date(b[idx.tanggal]) -
+
                new Date(a[idx.tanggal]);
 
       })
 
-      .slice(0, 5)
+      .slice(0,5)
 
-      .map(function (row) {
+      .map(function(row){
 
-        const tgl = new Date(row[idx.tanggal]);
+        var tgl = new Date(row[idx.tanggal]);
 
         return {
 
           id: row[idx.id],
 
-          kategori: String(
-            row[idx.kategori] || ""
-          ),
+          kategori: String(row[idx.kategori]),
 
-          lokasi: String(
-            row[idx.lokasi] || "-"
-          ),
+          lokasi: String(row[idx.lokasi]),
 
-          status: String(
-            row[idx.status] || ""
-          ),
+          status: String(row[idx.status]),
 
           waktu: Utilities.formatDate(
+
             tgl,
-            TIMEZONE,
+
+            String(TIMEZONE),
+
             "HH:mm"
+
           ),
 
           tanggal: Utilities.formatDate(
+
             tgl,
-            TIMEZONE,
+
+            String(TIMEZONE),
+
             "yyyy-MM-dd"
+
           )
 
         };
 
       });
 
-    // ======================
+    // ==========================================
     // RESPONSE
-    // ======================
+    // ==========================================
 
     return success({
 
-      total,
-      ac,
-      listrik,
-      gedung,
+      version: "3.3.0",
 
-      open,
-      progress,
-      done,
+      total: total,
+      ac: ac,
+      listrik: listrik,
+      gedung: gedung,
+
+      open: open,
+      progress: progress,
+      done: done,
 
       totalTrend: 0,
       acTrend: 0,
       listrikTrend: 0,
       gedungTrend: 0,
 
-      todayReport,
+      todayReport: todayReport,
 
       onlineUser: 1,
 
       pendingApproval: open,
 
-      activity,
+      activity: activity,
 
-      monthly,
+      monthly: monthly,
 
       serverTime: now(),
 
@@ -274,24 +331,18 @@ function getDashboard(data) {
 
   }
 
-  catch (err) {
+  catch(err){
 
     saveError(
+
       "Dashboard.gs",
+
       err.toString()
+
     );
 
     return failed(err.toString());
 
   }
-
-}
-
-// Tes
-function testDashboard(){
-
-  const result = getDashboard({});
-
-  Logger.log(result.getContent());
 
 }
