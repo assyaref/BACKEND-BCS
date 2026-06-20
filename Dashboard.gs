@@ -1,129 +1,348 @@
-// =============================
-// REPORT
-// =============================
+// ======================================================
+// Building Care System Enterprise v3.3 Stable
+// Dashboard.gs
+// Radiant Group Duri
+// ======================================================
 
-function getReports() {
+function getDashboard(data) {
 
-  const sh = getSheet(CONFIG.SHEET_REPORTS);
+  try {
 
-  const rows = sh
-    .getDataRange()
-    .getValues()
-    .slice(1);
+    // ==========================================
+    // TIMEZONE
+    // ==========================================
 
-  return {
+    var TIMEZONE = "Asia/Jakarta";
 
-    success: true,
+    if (typeof CONFIG !== "undefined") {
+      if (
+        CONFIG.TIMEZONE &&
+        typeof CONFIG.TIMEZONE === "string"
+      ) {
+        TIMEZONE = CONFIG.TIMEZONE;
+      }
+    }
 
-    reports: rows.map(r => ({
+    // ==========================================
+    // SHEET
+    // ==========================================
 
-      id: r[0],
+    var sheet = getSheet("REPORT");
 
-      tanggal: formatDate(r[1]),
+    if (!sheet) {
+      return failed("Sheet REPORT tidak ditemukan.");
+    }
 
-      nama: r[2],
+    var values = sheet.getDataRange().getValues();
 
-      departemen: r[3],
+    // ==========================================
+    // EMPTY DATA
+    // ==========================================
 
-      lokasi: r[4],
+    if (values.length <= 1) {
 
-      kategori: r[5],
+      return success({
 
-      deskripsi: r[6],
+        version: "3.3.0",
 
-      foto: r[7],
+        total: 0,
+        ac: 0,
+        listrik: 0,
+        gedung: 0,
 
-      status: r[8]
+        open: 0,
+        progress: 0,
+        done: 0,
 
-    }))
+        totalTrend: 0,
+        acTrend: 0,
+        listrikTrend: 0,
+        gedungTrend: 0,
 
-  };
+        todayReport: 0,
+        onlineUser: 1,
+        pendingApproval: 0,
 
-}
+        activity: [],
 
-function saveReport(data) {
+        monthly: [0,0,0,0,0,0,0,0,0,0,0,0],
 
-  const sh = getSheet(CONFIG.SHEET_REPORTS);
+        serverTime: now(),
+        lastUpdate: now()
 
-  let photoUrl = "";
-
-  if (data.photo) {
-
-    const upload = uploadPhoto(
-      data.photo,
-      data.fileName
-    );
-
-    if (!upload.success) {
-
-      return {
-
-        success: false,
-
-        message: upload.message
-
-      };
+      });
 
     }
 
-    photoUrl = upload.url;
+    // ==========================================
+    // HEADER
+    // ==========================================
+
+    var headers = values.shift().map(function(item){
+
+      return String(item).trim().toLowerCase();
+
+    });
+
+    var idx = {
+
+      id        : headers.indexOf("id"),
+      tanggal   : headers.indexOf("tanggal"),
+      lokasi    : headers.indexOf("lokasi"),
+      kategori  : headers.indexOf("kategori"),
+      status    : headers.indexOf("status")
+
+    };
+
+    if (
+
+      idx.id < 0 ||
+      idx.tanggal < 0 ||
+      idx.lokasi < 0 ||
+      idx.kategori < 0 ||
+      idx.status < 0
+
+    ){
+
+      return failed("Header REPORT tidak sesuai.");
+
+    }
+
+    // ==========================================
+    // VARIABLE
+    // ==========================================
+
+    var total = 0;
+    var ac = 0;
+    var listrik = 0;
+    var gedung = 0;
+
+    var open = 0;
+    var progress = 0;
+    var done = 0;
+
+    var todayReport = 0;
+
+    var monthly = [0,0,0,0,0,0,0,0,0,0,0,0];
+
+    var today = Utilities.formatDate(
+
+      new Date(),
+      String(TIMEZONE),
+      "yyyy-MM-dd"
+
+    );
+
+    // ==========================================
+    // LOOP
+    // ==========================================
+
+    values.forEach(function(row){
+
+      if (!row[idx.id]) return;
+
+      total++;
+
+      var kategori = String(row[idx.kategori] || "")
+        .trim()
+        .toUpperCase();
+
+      var status = String(row[idx.status] || "")
+        .trim()
+        .toUpperCase();
+
+      var tanggal = new Date(row[idx.tanggal]);
+
+      // CATEGORY
+
+      if (kategori === "AC") {
+
+        ac++;
+
+      } else if (kategori === "LISTRIK") {
+
+        listrik++;
+
+      } else {
+
+        gedung++;
+
+      }
+
+      // STATUS
+
+      if (
+
+        status === "OPEN" ||
+        status === "WAITING"
+
+      ){
+
+        open++;
+
+      }
+
+      else if (
+
+        status === "PROGRESS" ||
+        status === "ON PROGRESS"
+
+      ){
+
+        progress++;
+
+      }
+
+      else if (
+
+        status === "DONE" ||
+        status === "COMPLETED" ||
+        status === "CLOSED"
+
+      ){
+
+        done++;
+
+      }
+
+      // DATE
+
+      if (!isNaN(tanggal.getTime())) {
+
+        if (
+
+          Utilities.formatDate(
+
+            tanggal,
+            String(TIMEZONE),
+            "yyyy-MM-dd"
+
+          ) === today
+
+        ){
+
+          todayReport++;
+
+        }
+
+        monthly[tanggal.getMonth()]++;
+
+      }
+
+    });
+
+    // ==========================================
+    // RECENT ACTIVITY
+    // ==========================================
+
+    var activity = values
+
+      .filter(function(row){
+
+        return row[idx.id];
+
+      })
+
+      .sort(function(a,b){
+
+        return new Date(b[idx.tanggal]) -
+
+               new Date(a[idx.tanggal]);
+
+      })
+
+      .slice(0,5)
+
+      .map(function(row){
+
+        var tgl = new Date(row[idx.tanggal]);
+
+        return {
+
+          id: row[idx.id],
+
+          kategori: String(row[idx.kategori]),
+
+          lokasi: String(row[idx.lokasi]),
+
+          status: String(row[idx.status]),
+
+          waktu: Utilities.formatDate(
+
+            tgl,
+
+            String(TIMEZONE),
+
+            "HH:mm"
+
+          ),
+
+          tanggal: Utilities.formatDate(
+
+            tgl,
+
+            String(TIMEZONE),
+
+            "yyyy-MM-dd"
+
+          )
+
+        };
+
+      });
+
+    // ==========================================
+    // RESPONSE
+    // ==========================================
+
+    return success({
+
+      version: "3.3.0",
+
+      total: total,
+      ac: ac,
+      listrik: listrik,
+      gedung: gedung,
+
+      open: open,
+      progress: progress,
+      done: done,
+
+      totalTrend: 0,
+      acTrend: 0,
+      listrikTrend: 0,
+      gedungTrend: 0,
+
+      todayReport: todayReport,
+
+      onlineUser: 1,
+
+      pendingApproval: open,
+
+      activity: activity,
+
+      monthly: monthly,
+
+      serverTime: now(),
+
+      lastUpdate: now()
+
+    });
 
   }
 
-  const id = generateId();
+  catch(err){
 
-  sh.appendRow([
+    saveError(
 
-    id,
+      "Dashboard.gs",
 
-    new Date(),
+      err.toString()
 
-    data.nama,
+    );
 
-    data.departemen,
+    return failed(err.toString());
 
-    data.lokasi,
-
-    data.kategori,
-
-    data.deskripsi,
-
-    photoUrl,
-
-    CONFIG.STATUS.OPEN,
-
-    ""
-
-  ]);
-
-  SpreadsheetApp.flush();
-
-  return {
-
-    success: true,
-
-    message: "Laporan berhasil dikirim",
-
-    report: {
-
-      id: id,
-
-      tanggal: formatDate(new Date()),
-
-      nama: data.nama,
-
-      departemen: data.departemen,
-
-      lokasi: data.lokasi,
-
-      kategori: data.kategori,
-
-      status: CONFIG.STATUS.OPEN,
-
-      foto: photoUrl
-
-    }
-
-  };
+  }
 
 }
