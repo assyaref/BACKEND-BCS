@@ -346,3 +346,164 @@ function getDashboard(data) {
   }
 
 }
+/**
+ * =====================================================
+ * GET SUMMARY
+ * Building Care System Enterprise v4.2 Stable
+ * Sprint 9.1 Dashboard Analytics
+ * =====================================================
+ */
+function getSummary() {
+
+  try {
+
+    // ======================================
+    // DASHBOARD
+    // ======================================
+    const dashboard = getDashboard();
+
+    if (!dashboard.success) {
+      return dashboard;
+    }
+
+    // ======================================
+    // REPORT
+    // ======================================
+    const reportResponse = getReports();
+
+    if (!reportResponse.success) {
+      return reportResponse;
+    }
+
+    const data = dashboard.data;
+    const reports = reportResponse.data.reports || [];
+
+    // ======================================
+    // SLA COUNTER
+    // ======================================
+    const fast =
+      reports.filter(r => r.sla === "FAST").length;
+
+    const normal =
+      reports.filter(r => r.sla === "NORMAL").length;
+
+    const late =
+      reports.filter(r => r.sla === "LATE").length;
+
+    // ======================================
+    // RESPONSE
+    // ======================================
+    return success({
+
+      // STATUS
+      total: data.total,
+      open: data.open,
+      progress: data.progress,
+      done: data.done,
+
+      // CATEGORY
+      ac: data.ac,
+      listrik: data.listrik,
+      bangunan: data.gedung,
+
+      // SLA
+      fast: fast,
+      normal: normal,
+      late: late,
+
+      // DAILY
+      todayReport: data.todayReport,
+
+      // PENDING
+      pendingApproval: data.pendingApproval,
+
+      // ACTIVITY
+      activity: data.activity || [],
+
+      // MONTHLY CHART
+      monthly: data.monthly || [0,0,0,0,0,0,0,0,0,0,0,0],
+
+      // SERVER
+      serverTime: data.serverTime,
+      lastUpdate: data.lastUpdate
+
+    });
+
+  }
+
+  catch (err) {
+
+    saveError(
+      "getSummary()",
+      err.stack || err.toString()
+    );
+
+    return failed(
+      "Gagal mengambil summary."
+    );
+
+  }
+
+}
+/**
+ * =====================================================
+ * GET TOP TECHNICIAN
+ * Sprint 9.2
+ * =====================================================
+ */
+function getTopTechnician() {
+
+  try {
+
+    const response = getReports();
+
+    if (!response.success) {
+      return response;
+    }
+
+    const reports = response.data.reports;
+
+    const teknisiMap = {};
+
+    reports.forEach(r => {
+
+      if (
+        r.status === CONFIG.STATUS.DONE &&
+        r.teknisi
+      ) {
+
+        teknisiMap[r.teknisi] =
+          (teknisiMap[r.teknisi] || 0) + 1;
+
+      }
+
+    });
+
+    const ranking = Object.keys(teknisiMap)
+      .map(nama => ({
+        nama: nama,
+        total: teknisiMap[nama]
+      }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 5);
+
+    return success({
+      teknisi: ranking
+    });
+
+  }
+
+  catch(err){
+
+    saveError(
+      "getTopTechnician()",
+      err.toString()
+    );
+
+    return failed(
+      "Gagal mengambil ranking teknisi."
+    );
+
+  }
+
+}
