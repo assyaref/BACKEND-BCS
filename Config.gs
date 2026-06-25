@@ -147,6 +147,20 @@ const SHEET = {
 
 };
 
+CONFIG.SHEET = {
+
+  USERS: SHEET.USERS,
+
+  REPORT: SHEET.REPORT,
+
+  ACTIVITY: SHEET.ACTIVITY,
+
+  ERROR_LOG: SHEET.ERROR_LOG,
+
+  USER_SESSION: SHEET.USER_SESSION
+
+};
+
 // ======================================================
 // COLUMN INDEX REPORT
 // ======================================================
