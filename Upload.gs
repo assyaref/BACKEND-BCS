@@ -1,143 +1,84 @@
-// =============================
+// =====================================================
 // UPLOAD FOTO
-// =============================
+// Building Care System Enterprise v3.3.3 Stable
+// =====================================================
 function uploadPhoto(base64, fileName) {
-
   try {
-
     if (!base64) {
       throw new Error("Data foto kosong.");
     }
 
-    const folder = DriveApp.getFolderById(
-      CONFIG.DRIVE.FOLDER_ID
-    );
-
+    const folder = DriveApp.getFolderById(CONFIG.DRIVE.FOLDER_ID);
     let bytes;
     let contentType = "image/jpeg";
 
-    // --------------------------------
-    // Format : data:image/png;base64,...
-    // --------------------------------
-    if (base64.indexOf("data:") === 0) {
-
-      const match = base64.match(
-        /^data:(.*);base64,/
-      );
-
+    // ==========================================
+    // DECODE BASE64 (DATA URI vs MURNI)
+    // ==========================================
+    if (base64.startsWith("data:")) {
+      const match = base64.match(/^data:(.*);base64,/);
       if (!match) {
-        throw new Error(
-          "Format Base64 tidak valid."
-        );
+        throw new Error("Format Base64 tidak valid.");
       }
-
       contentType = match[1];
-
-      bytes = Utilities.base64Decode(
-        base64.split(",")[1]
-      );
-
+      bytes = Utilities.base64Decode(base64.split(",")[1]);
+    } else {
+      bytes = Utilities.base64Decode(base64);
     }
 
-    // --------------------------------
-    // Format : iVBORw0KGgo...
-    // --------------------------------
-    else {
+    // ==========================================
+    // EXTENSION & FILE NAMING
+    // ==========================================
+    const extension = contentType.split("/")[1] || "jpg";
+    const safeName = fileName
+      ? fileName.replace(/[^\w.\-]/g, "_")
+      : generateId() + "." + extension;
 
-      bytes = Utilities.base64Decode(
-        base64
-      );
+    const finalName = generateId() + "_" + safeName;
 
-    }
-
-    // --------------------------------
-    // Tentukan extension
-    // --------------------------------
-    const extension =
-      contentType.split("/")[1] || "jpg";
-
-    // --------------------------------
-    // Nama file
-    // --------------------------------
-    const safeFileName =
-      fileName
-        ? generateId() + "_" + fileName
-        : generateId() + "." + extension;
-
-    // --------------------------------
-    // Blob
-    // --------------------------------
-    const blob = Utilities.newBlob(
-      bytes,
-      contentType,
-      safeFileName
-    );
-
-    // --------------------------------
-    // Upload ke Drive
-    // --------------------------------
+    // ==========================================
+    // CREATE FILE & SET SHARING
+    // ==========================================
+    const blob = Utilities.newBlob(bytes, contentType, finalName);
     const file = folder.createFile(blob);
 
-    // --------------------------------
-    // Share file
-    // --------------------------------
-    file.setSharing(
-      DriveApp.Access.ANYONE_WITH_LINK,
-      DriveApp.Permission.VIEW
-    );
-
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
     const fileId = file.getId();
 
-    // --------------------------------
-    // Return
-    // --------------------------------
+    // ==========================================
+    // GENERATE URLS
+    // ==========================================
+    const thumbnailUrl = "https://lh3.googleusercontent.com/d/" + fileId;
+    const previewUrl = "https://lh3.googleusercontent.com/d/" + fileId;
+    const downloadUrl = "https://drive.google.com/uc?export=download&id=" + fileId;
+    const driveUrl = "https://drive.google.com/file/d/" + fileId + "/view";
+
+    // ==========================================
+    // RESPONSE SUCCESS
+    // ==========================================
     return {
-
       success: true,
-
       message: "Upload berhasil",
-
-      fileId: fileId,
-
-      fileName: safeFileName,
-
+      fileId,
+      fileName: finalName,
       mimeType: contentType,
-
-      url:
-        "https://drive.google.com/uc?export=view&id=" +
-        fileId,
-
-      downloadUrl:
-        "https://drive.google.com/uc?export=download&id=" +
-        fileId
-
+      size: blob.getBytes().length,
+      url: thumbnailUrl,
+      previewUrl,
+      downloadUrl,
+      driveUrl
     };
 
-  }
-
-  catch (err) {
-
+  } catch (err) {
     try {
-
-      saveError(
-        "uploadPhoto()",
-        err.toString()
-      );
-
+      saveError("uploadPhoto()", err.toString());
     } catch (e) {
-
       Logger.log(e);
-
     }
 
     return {
-
       success: false,
-
       message: err.toString()
-
     };
-
   }
-
 }
