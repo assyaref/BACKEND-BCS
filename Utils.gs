@@ -1,394 +1,275 @@
 // =====================================================
-// Building Care System Enterprise v3.2
-// Utils Library
+// Building Care System Enterprise v4.3 Stable
+// Utils.gs
 // Radiant Group Duri
 // =====================================================
 
+"use strict";
+
 /**
  * =====================================================
- * SPREADSHEET
+ * SPREADSHEET UTILS
  * =====================================================
  */
-
 function getSpreadsheet() {
-
   if (!CONFIG.DATABASE || !CONFIG.DATABASE.SS_ID) {
-
     throw new Error("Spreadsheet ID belum dikonfigurasi.");
-
   }
-
   return SpreadsheetApp.openById(CONFIG.DATABASE.SS_ID);
-
 }
-
-/**
- * =====================================================
- * SHEET
- * =====================================================
- */
 
 function getSheet(sheetName) {
-
   const sheet = getSpreadsheet().getSheetByName(sheetName);
-
   if (!sheet) {
-
     throw new Error("Sheet '" + sheetName + "' tidak ditemukan.");
-
   }
-
   return sheet;
-
 }
 
 /**
  * =====================================================
- * JSON RESPONSE
+ * HTTP RESPONSES
  * =====================================================
  */
-
 function json(data) {
-
-  return ContentService
-    .createTextOutput(JSON.stringify(data))
+  return ContentService.createTextOutput(JSON.stringify(data))
     .setMimeType(ContentService.MimeType.JSON);
-
 }
-
-/**
- * =====================================================
- * SUCCESS RESPONSE
- * =====================================================
- */
 
 function success(data, message) {
-
   return json({
-
     success: true,
-
     message: message || "Success",
-
     data: data || {},
-
     serverTime: now()
-
   });
-
 }
-
-/**
- * =====================================================
- * FAILED RESPONSE
- * =====================================================
- */
 
 function failed(message, data) {
-
   return json({
-
     success: false,
-
     message: message || "Failed",
-
     data: data || {},
-
     serverTime: now()
-
   });
-
 }
-
-/**
- * =====================================================
- * BACKWARD COMPATIBILITY
- * =====================================================
- */
 
 function failure(message, data) {
-
   return failed(message, data);
-
 }
 
 /**
  * =====================================================
- * TOKEN
+ * GENERATORS
  * =====================================================
  */
-
 function generateToken() {
-
   return Utilities.getUuid();
+}
 
+/**
+ * REPORT ID
+ * BCS-20260623-081
+ */
+function generateId() {
+  const sheet = getSheet(SHEET.REPORT);
+  const lastRow = sheet.getLastRow();
+  const number = String(lastRow).padStart(3, "0");
+  const date = Utilities.formatDate(new Date(), CONFIG.TIMEZONE, "yyyyMMdd");
+
+  return "BCS-" + date + "-" + number;
 }
 
 /**
  * =====================================================
- * DATETIME
+ * GENERATE WORK ORDER
+ * Sprint 11.0
+ * WO-20260623-104512
  * =====================================================
  */
+function generateWO() {
+  return "WO-" + Utilities.formatDate(new Date(), CONFIG.TIMEZONE, "yyyyMMdd-HHmmss");
+}
+/**
+ * =====================================================
+ * GENERATE PM ID
+ * =====================================================
+ */
+function generatePMId(){
 
+  return "PM-" +
+
+    Utilities.formatDate(
+      new Date(),
+      CONFIG.TIMEZONE,
+      "yyyyMMdd-HHmmss"
+    );
+
+}
+/**
+ * =====================================================
+ * GENERATE ASSET ID
+ * Sprint 18.0
+ * =====================================================
+ */
+function generateAssetId() {
+
+  return "AST-" +
+
+    Utilities.formatDate(
+      new Date(),
+      CONFIG.TIMEZONE,
+      "yyyyMMdd-HHmmss"
+    );
+
+}
+/**
+ * =====================================================
+ * DATETIME HELPERS
+ * =====================================================
+ */
 function now() {
+  return Utilities.formatDate(new Date(), CONFIG.TIMEZONE, CONFIG.DATE_FORMAT.DATETIME);
+}
 
-  return Utilities.formatDate(
-
-    new Date(),
-
-    CONFIG.TIMEZONE || Session.getScriptTimeZone(),
-
-    "yyyy-MM-dd HH:mm:ss"
-
-  );
-
+function formatDate(date) {
+  if (!date) return "";
+  return Utilities.formatDate(new Date(date), CONFIG.TIMEZONE, CONFIG.DATE_FORMAT.DATETIME);
 }
 
 /**
  * =====================================================
- * HASH PASSWORD
+ * SECURITY
  * =====================================================
  */
-
 function hashPassword(password) {
-
-  const raw = Utilities.computeDigest(
-
-    Utilities.DigestAlgorithm.SHA_256,
-
-    String(password)
-
-  );
-
-  return raw.map(function (b) {
-
-    const value = (b < 0 ? b + 256 : b).toString(16);
-
-    return ("0" + value).slice(-2);
-
-  }).join("");
-
+  const raw = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(password));
+  return raw
+    .map(b => {
+      const value = (b < 0 ? b + 256 : b).toString(16);
+      return ("0" + value).slice(-2);
+    })
+    .join("");
 }
 
 /**
  * =====================================================
- * SAFE HELPER
+ * DATA SANITIZATION
  * =====================================================
  */
-
 function safeString(value) {
-
   return String(value || "").trim();
-
 }
 
 function safeNumber(value) {
-
   const number = Number(value);
-
   return isNaN(number) ? 0 : number;
-
 }
 
 function safeArray(value) {
-
   return Array.isArray(value) ? value : [];
-
 }
 
 /**
  * =====================================================
- * FIND USER BY EMAIL
+ * USER MANAGEMENT
  * =====================================================
  */
-
 function findUser(email) {
-
   const sheet = getSheet(SHEET.USERS);
-
-  const data = sheet.getDataRange().getValues();
-
+  const rows = sheet.getDataRange().getValues();
   email = safeString(email).toLowerCase();
 
-  for (let i = 1; i < data.length; i++) {
-
-    if (
-
-      safeString(data[i][0]).toLowerCase() === email
-
-    ) {
-
+  for (let i = 1; i < rows.length; i++) {
+    if (safeString(rows[i][0]).toLowerCase() === email) {
       return {
-
         row: i + 1,
-
-        email: safeString(data[i][0]),
-
-        nik: safeString(data[i][1]),
-
-        nama: safeString(data[i][2]),
-
-        password: safeString(data[i][3]),
-
-        role: safeString(data[i][4]),
-
-        status: safeString(data[i][5])
-
+        email: rows[i][0],
+        nik: rows[i][1],
+        nama: rows[i][2],
+        password: rows[i][3],
+        role: rows[i][4],
+        status: rows[i][5]
       };
-
     }
-
   }
-
   return null;
-
 }
-
-/**
- * =====================================================
- * FIND USER BY NIK
- * =====================================================
- */
 
 function findUserByNik(nik) {
-
   const sheet = getSheet(SHEET.USERS);
-
-  const data = sheet.getDataRange().getValues();
-
+  const rows = sheet.getDataRange().getValues();
   nik = safeString(nik);
 
-  for (let i = 1; i < data.length; i++) {
-
-    if (
-
-      safeString(data[i][1]) === nik
-
-    ) {
-
+  for (let i = 1; i < rows.length; i++) {
+    if (safeString(rows[i][1]) === nik) {
       return {
-
         row: i + 1,
-
-        email: safeString(data[i][0]),
-
-        nik: safeString(data[i][1]),
-
-        nama: safeString(data[i][2]),
-
-        password: safeString(data[i][3]),
-
-        role: safeString(data[i][4]),
-
-        status: safeString(data[i][5])
-
+        email: rows[i][0],
+        nik: rows[i][1],
+        nama: rows[i][2],
+        password: rows[i][3],
+        role: rows[i][4],
+        status: rows[i][5]
       };
-
     }
-
   }
-
   return null;
-
 }
 
 /**
  * =====================================================
- * SAVE ACTIVITY
+ * LOGGING
  * =====================================================
  */
-
 function saveActivity(email, action, description) {
-
   try {
-
-    const sheet = getSheet(SHEET.ACTIVITY);
-
-    sheet.appendRow([
-
+    getSheet(SHEET.ACTIVITY).appendRow([
       Utilities.getUuid(),
-
       safeString(email),
-
       safeString(action),
-
       safeString(description),
-
       now()
-
     ]);
-
   } catch (err) {
-
     Logger.log(err);
-
   }
-
 }
-
-/**
- * =====================================================
- * SAVE ERROR
- * =====================================================
- */
 
 function saveError(module, message) {
-
   try {
-
-    const sheet = getSheet(SHEET.ERROR_LOG);
-
-    sheet.appendRow([
-
+    getSheet(SHEET.ERROR_LOG).appendRow([
       Utilities.getUuid(),
-
       safeString(module),
-
       safeString(message),
-
       now()
-
     ]);
-
   } catch (err) {
-
     Logger.log(err);
-
   }
-
 }
-//tes
-function testConfig() {
 
-  Logger.log("CONFIG.TIMEZONE = " + CONFIG.TIMEZONE);
-  Logger.log("TYPE = " + typeof CONFIG.TIMEZONE);
-
-}
-function testNow(){
-
+/**
+ * =====================================================
+ * UNIT TEST
+ * =====================================================
+ */
+function testNow() {
   Logger.log(now());
+}
 
+function testGenerateId() {
+  Logger.log(generateId());
+}
+
+function testGenerateWO() {
+  Logger.log(generateWO());
 }
 
 function testSheet() {
-
-  Logger.log("===== TEST SHEET =====");
-
   Logger.log(JSON.stringify(SHEET));
-
-  Logger.log("USERS = " + SHEET.USERS);
-
-  Logger.log("REPORT = " + SHEET.REPORT);
-
-  Logger.log("ACTIVITY = " + SHEET.ACTIVITY);
-
-  Logger.log("ERROR_LOG = " + SHEET.ERROR_LOG);
-
-  Logger.log("USER_SESSION = " + SHEET.USER_SESSION);
-
 }
+
 function testHash() {
-
   Logger.log(hashPassword("03233"));
-
 }
