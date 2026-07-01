@@ -1,16 +1,11 @@
 // =====================================================
-// Building Care System Enterprise v4.3 Stable
+// Building Care System Enterprise v3.5
 // Utils.gs
 // Radiant Group Duri
 // =====================================================
 
 "use strict";
 
-/**
- * =====================================================
- * SPREADSHEET UTILS
- * =====================================================
- */
 function getSpreadsheet() {
   if (!CONFIG.DATABASE || !CONFIG.DATABASE.SS_ID) {
     throw new Error("Spreadsheet ID belum dikonfigurasi.");
@@ -26,108 +21,57 @@ function getSheet(sheetName) {
   return sheet;
 }
 
-/**
- * =====================================================
- * HTTP RESPONSES
- * =====================================================
- */
 function json(data) {
   return ContentService.createTextOutput(JSON.stringify(data))
     .setMimeType(ContentService.MimeType.JSON);
 }
 
 function success(data, message) {
-  return json({
+  return {
     success: true,
     message: message || "Success",
     data: data || {},
     serverTime: now()
-  });
+  };
 }
 
 function failed(message, data) {
-  return json({
+  return {
     success: false,
     message: message || "Failed",
     data: data || {},
     serverTime: now()
-  });
+  };
 }
 
 function failure(message, data) {
   return failed(message, data);
 }
 
-/**
- * =====================================================
- * GENERATORS
- * =====================================================
- */
 function generateToken() {
   return Utilities.getUuid();
 }
 
-/**
- * REPORT ID
- * BCS-20260623-081
- */
 function generateId() {
   const sheet = getSheet(SHEET.REPORT);
   const lastRow = sheet.getLastRow();
   const number = String(lastRow).padStart(3, "0");
   const date = Utilities.formatDate(new Date(), CONFIG.TIMEZONE, "yyyyMMdd");
-
   return "BCS-" + date + "-" + number;
 }
 
-/**
- * =====================================================
- * GENERATE WORK ORDER
- * Sprint 11.0
- * WO-20260623-104512
- * =====================================================
- */
 function generateWO() {
   return "WO-" + Utilities.formatDate(new Date(), CONFIG.TIMEZONE, "yyyyMMdd-HHmmss");
 }
-/**
- * =====================================================
- * GENERATE PM ID
- * =====================================================
- */
-function generatePMId(){
 
-  return "PM-" +
-
-    Utilities.formatDate(
-      new Date(),
-      CONFIG.TIMEZONE,
-      "yyyyMMdd-HHmmss"
-    );
-
+function generatePMId() {
+  return "PM-" + Utilities.formatDate(new Date(), CONFIG.TIMEZONE, "yyyyMMdd-HHmmss");
 }
-/**
- * =====================================================
- * GENERATE ASSET ID
- * Sprint 18.0
- * =====================================================
- */
+
 function generateAssetId() {
-
-  return "AST-" +
-
-    Utilities.formatDate(
-      new Date(),
-      CONFIG.TIMEZONE,
-      "yyyyMMdd-HHmmss"
-    );
-
+  return "AST-" + Utilities.formatDate(new Date(), CONFIG.TIMEZONE, "yyyyMMdd-HHmmss");
 }
-/**
- * =====================================================
- * DATETIME HELPERS
- * =====================================================
- */
+
 function now() {
   return Utilities.formatDate(new Date(), CONFIG.TIMEZONE, CONFIG.DATE_FORMAT.DATETIME);
 }
@@ -137,26 +81,14 @@ function formatDate(date) {
   return Utilities.formatDate(new Date(date), CONFIG.TIMEZONE, CONFIG.DATE_FORMAT.DATETIME);
 }
 
-/**
- * =====================================================
- * SECURITY
- * =====================================================
- */
 function hashPassword(password) {
   const raw = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(password));
-  return raw
-    .map(b => {
-      const value = (b < 0 ? b + 256 : b).toString(16);
-      return ("0" + value).slice(-2);
-    })
-    .join("");
+  return raw.map(b => {
+    const value = (b < 0 ? b + 256 : b).toString(16);
+    return ("0" + value).slice(-2);
+  }).join("");
 }
 
-/**
- * =====================================================
- * DATA SANITIZATION
- * =====================================================
- */
 function safeString(value) {
   return String(value || "").trim();
 }
@@ -170,11 +102,6 @@ function safeArray(value) {
   return Array.isArray(value) ? value : [];
 }
 
-/**
- * =====================================================
- * USER MANAGEMENT
- * =====================================================
- */
 function findUser(email) {
   const sheet = getSheet(SHEET.USERS);
   const rows = sheet.getDataRange().getValues();
@@ -217,11 +144,6 @@ function findUserByNik(nik) {
   return null;
 }
 
-/**
- * =====================================================
- * LOGGING
- * =====================================================
- */
 function saveActivity(email, action, description) {
   try {
     getSheet(SHEET.ACTIVITY).appendRow([
@@ -249,11 +171,7 @@ function saveError(module, message) {
   }
 }
 
-/**
- * =====================================================
- * UNIT TEST
- * =====================================================
- */
+// TEST FUNCTIONS
 function testNow() {
   Logger.log(now());
 }
