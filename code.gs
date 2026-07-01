@@ -1,254 +1,443 @@
 // =====================================================
-// Building Care System Enterprise v3.3 Stable
-// Code.gs
-// Main Router API
+// Building Care System Enterprise v3.6
+// Code.gs - Main Router API (Updated for JSONP Login)
 // Radiant Group Duri
 // =====================================================
 
 /**
  * =====================================================
- * GET ROUTER
+ * DOOPTIONS - Handle CORS Preflight (JSONP Only)
+ * =====================================================
+ */
+function doOptions(e) {
+  return ContentService
+    .createTextOutput("")
+    .setMimeType(ContentService.MimeType.TEXT);
+}
+
+/**
+ * =====================================================
+ * DOGET - Handle GET Requests (JSONP Only)
  * =====================================================
  */
 function doGet(e) {
-
   try {
-
     e = e || {};
     e.parameter = e.parameter || {};
 
-    const action = String(e.parameter.action || "health");
+    var action = String(e.parameter.action || "health");
+    var callback = String(e.parameter.callback || "");
+    var result;
 
     switch (action) {
-
       case "version":
-
-        return success({
-
-          build: "20-06-2026-09:30",
-
-          app: CONFIG.APP.NAME,
-
-          version: CONFIG.APP.VERSION,
-
-          company: CONFIG.APP.COMPANY,
-
-          sheet: SHEET,
-
-          timezone: CONFIG.TIMEZONE,
-
-          serverTime: now()
-
-        });
-
-      case "getDashboard":
-
-        return getDashboard({});
+        result = {
+          success: true,
+          data: {
+            build: "20-06-2026-09:30",
+            app: CONFIG.APP.NAME,
+            version: CONFIG.APP.VERSION,
+            company: CONFIG.APP.COMPANY,
+            sheet: SHEET,
+            timezone: CONFIG.TIMEZONE,
+            serverTime: now()
+          }
+        };
+        break;
 
       case "health":
+        result = {
+          success: true,
+          data: {
+            app: CONFIG.APP.NAME,
+            version: CONFIG.APP.VERSION,
+            company: CONFIG.APP.COMPANY,
+            status: "ONLINE",
+            serverTime: now()
+          }
+        };
+        break;
+
+      // ========== TAMBAHAN UNTUK LOGIN VIA JSONP ==========
+      case "login":
+        var loginData = {};
+        try {
+          loginData = JSON.parse(e.parameter.data || "{}");
+        } catch (err) {
+          loginData.username = e.parameter.username || "";
+          loginData.password = e.parameter.password || "";
+        }
+        result = login(loginData);
+        break;
+      // =====================================================
+
+      case "getReport":
+        var id = String(e.parameter.id || "");
+        if (id) {
+          result = getReport({ id: id });
+        } else {
+          result = { success: false, message: "ID laporan tidak ditemukan." };
+        }
+        break;
+
+      case "getReports":
+        result = getReports({});
+        break;
+
+      case "getDashboard":
+        result = getDashboard({});
+        break;
+
+      case "getSummary":
+        result = getSummary({});
+        break;
+
+      case "getPendingApproval":
+        result = getPendingApproval({});
+        break;
+
+      case "getMonitoringOverview":
+        result = getMonitoringOverview({});
+        break;
 
       default:
-
-        return success({
-
-          app: CONFIG.APP.NAME,
-
-          version: CONFIG.APP.VERSION,
-
-          company: CONFIG.APP.COMPANY,
-
-          status: "ONLINE",
-
-          serverTime: now()
-
-        });
-
+        result = {
+          success: false,
+          message: "Action tidak ditemukan : " + action
+        };
+        break;
     }
 
-  } catch (err) {
+    return jsonpResponse(result, callback);
 
+  } catch (err) {
     try {
       saveError("Code.gs", err.toString());
     } catch (e) {}
-
-    return failed(err.toString());
-
+    return jsonpResponse({
+      success: false,
+      message: err.toString()
+    }, "");
   }
-
 }
 
 /**
  * =====================================================
- * POST ROUTER
+ * DOPOST - Handle POST Requests (JSONP & JSON)
  * =====================================================
  */
 function doPost(e) {
-
   try {
-
     if (!e || !e.postData) {
-
-      return failed("Request tidak valid.");
-
+      return jsonpResponse({
+        success: false,
+        message: "Request tidak valid."
+      }, "");
     }
 
-    let request = {};
-
+    var request = {};
     try {
-
-      request = JSON.parse(
-
-        e.postData.contents || "{}"
-
-      );
-
+      request = JSON.parse(e.postData.contents || "{}");
     } catch (err) {
-
-      return failed("Format JSON tidak valid.");
-
+      return jsonpResponse({
+        success: false,
+        message: "Format JSON tidak valid."
+      }, "");
     }
 
-    const action = String(request.action || "");
-
-    const data = request.data || {};
+    var action = String(request.action || "");
+    var data = request.data || {};
+    var callback = String(request.callback || "");
+    var result;
 
     switch (action) {
-
+      // AUTH
       case "login":
-
-        return login(data);
-
+        result = login(data);
+        break;
       case "logout":
-
-        return logout(data);
-
+        result = logout(data);
+        break;
       case "verifySession":
+        result = verifySession(data);
+        break;
 
-        return verifySession(data);
-
+      // DASHBOARD
       case "getDashboard":
+        result = getDashboard(data);
+        break;
+      case "getSummary":
+        result = getSummary(data);
+        break;
+      case "getRecentActivity":
+        result = getRecentActivity(data);
+        break;
+      case "getTopTechnician":
+        result = getTopTechnician(data);
+        break;
 
-        return getDashboard(data);
-      
-      case "getMonitoringOverview":
-
-  return getMonitoringOverview(data);
-
-      case "saveReport":
-
-        return saveReport(data);
-
+      // REPORT
+      case "getReports":
+        result = getReports(data);
+        break;
       case "getReport":
-
-        return getReport(data);
-
+        result = getReport(data);
+        break;
+      case "saveReport":
+        result = saveReport(data);
+        break;
       case "updateReport":
-
-        return updateReport(data);
-
+        result = updateReport(data);
+        break;
       case "uploadPhoto":
+        result = uploadPhoto(data);
+        break;
 
-        return uploadPhoto(data);
+      // MONITORING
+      case "getMonitoringOverview":
+        result = getMonitoringOverview(data);
+        break;
 
+      // APPROVAL
+      case "getPendingApproval":
+        result = getPendingApproval(data);
+        break;
+      case "approveReport":
+        result = approveReport(data);
+        break;
+      case "rejectReport":
+        result = rejectReport(data);
+        break;
+
+      // VERSION
       case "version":
-
-        return version();
+        result = version(data);
+        break;
 
       default:
-
-        return failed(
-
-          "Action tidak ditemukan : " + action
-
-        );
-
+        result = {
+          success: false,
+          message: "Action tidak ditemukan : " + action
+        };
+        break;
     }
 
-  } catch (err) {
+    return jsonpResponse(result, callback);
 
+  } catch (err) {
     try {
       saveError("Code.gs", err.toString());
     } catch (e) {}
-
-    return failed(err.toString());
-
+    return jsonpResponse({
+      success: false,
+      message: err.toString()
+    }, "");
   }
-
 }
+
 /**
  * =====================================================
- * SAVE REPORT
- * Building Care System Enterprise v3.3.3 Stable
- * Smart Header Mapping + Auto Upload Photo
+ * JSONP RESPONSE - Tanpa Header Manual
  * =====================================================
  */
+function jsonpResponse(data, callback) {
+  var jsonString = JSON.stringify(data);
+
+  if (callback && callback.trim() !== "") {
+    var response = callback + "(" + jsonString + ");";
+    return ContentService
+      .createTextOutput(response)
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+
+  return ContentService
+    .createTextOutput(jsonString)
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+/**
+ * =====================================================
+ * VERSION API
+ * =====================================================
+ */
+function version() {
+  return {
+    success: true,
+    data: {
+      build: "20-06-2026-09:30",
+      app: CONFIG.APP.NAME,
+      version: CONFIG.APP.VERSION,
+      company: CONFIG.APP.COMPANY,
+      sheet: SHEET,
+      timezone: CONFIG.TIMEZONE,
+      serverTime: now()
+    }
+  };
+}
+
+// =====================================================
+// FUNGSI PENDUKUNG UNTUK SAVE REPORT
+// (DITAMBAHKAN AGAR TIDAK DEPENDENSI FILE LAIN)
+// =====================================================
+
+/**
+ * RESPONSE HELPERS
+ */
+function success(data, message) {
+  return {
+    success: true,
+    message: message || "Success",
+    data: data || {},
+    serverTime: now()
+  };
+}
+
+function failed(message, data) {
+  return {
+    success: false,
+    message: message || "Failed",
+    data: data || {},
+    serverTime: now()
+  };
+}
+
+/**
+ * DATE TIME
+ */
+function now() {
+  return Utilities.formatDate(new Date(), CONFIG.TIMEZONE, CONFIG.DATE_FORMAT.DATETIME);
+}
+
+/**
+ * GET SHEET
+ */
+function getSheet(sheetName) {
+  var ss = SpreadsheetApp.openById(CONFIG.DATABASE.SS_ID);
+  var sheet = ss.getSheetByName(sheetName);
+  if (!sheet) {
+    throw new Error("Sheet '" + sheetName + "' tidak ditemukan.");
+  }
+  return sheet;
+}
+
+/**
+ * UPLOAD FOTO
+ */
+function uploadPhoto(base64, fileName) {
+  try {
+    if (!base64) {
+      throw new Error("Data foto kosong.");
+    }
+
+    var folder = DriveApp.getFolderById(CONFIG.DRIVE.FOLDER_ID);
+    var bytes;
+    var contentType = "image/jpeg";
+
+    if (base64.startsWith("data:")) {
+      var match = base64.match(/^data:(.*);base64,/);
+      if (!match) {
+        throw new Error("Format Base64 tidak valid.");
+      }
+      contentType = match[1];
+      bytes = Utilities.base64Decode(base64.split(",")[1]);
+    } else {
+      bytes = Utilities.base64Decode(base64);
+    }
+
+    var extension = contentType.split("/")[1] || "jpg";
+    var safeName = fileName
+      ? fileName.replace(/[^\w.\-]/g, "_")
+      : "photo_" + new Date().getTime() + "." + extension;
+
+    var blob = Utilities.newBlob(bytes, contentType, safeName);
+    var file = folder.createFile(blob);
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    var fileId = file.getId();
+
+    var thumbnailUrl = "https://lh3.googleusercontent.com/d/" + fileId;
+
+    return {
+      success: true,
+      message: "Upload berhasil",
+      fileId: fileId,
+      fileName: safeName,
+      url: thumbnailUrl,
+      previewUrl: thumbnailUrl,
+      downloadUrl: "https://drive.google.com/uc?export=download&id=" + fileId,
+      driveUrl: "https://drive.google.com/file/d/" + fileId + "/view"
+    };
+
+  } catch (err) {
+    try {
+      saveError("uploadPhoto()", err.toString());
+    } catch (e) {}
+    return {
+      success: false,
+      message: err.toString()
+    };
+  }
+}
+
+/**
+ * SAVE ERROR LOG
+ */
+function saveError(module, message) {
+  try {
+    var sheet = getSheet(SHEET.ERROR_LOG);
+    sheet.appendRow([
+      new Date().toISOString(),
+      module,
+      message
+    ]);
+  } catch (e) {
+    Logger.log(e);
+  }
+}
+
+// =====================================================
+// SAVE REPORT - Direct Implementation
+// =====================================================
 function saveReport(data) {
   try {
-    // ==========================================
-    // VALIDASI DATA
-    // ==========================================
+    // Validasi
     if (!data) return failed("Data report tidak ditemukan.");
 
-    const requiredFields = [
-      { field: "nama", message: "Nama pelapor wajib diisi." },
-      { field: "departemen", message: "Departemen wajib diisi." },
-      { field: "lokasi", message: "Lokasi kerusakan wajib diisi." },
-      { field: "kategori", message: "Kategori wajib dipilih." },
-      { field: "deskripsi", message: "Deskripsi kerusakan wajib diisi." }
-    ];
-
-    for (const item of requiredFields) {
-      if (!data[item.field]) return failed(item.message);
-    }
-
-    // ==========================================
-    // SHEET & HEADER
-    // ==========================================
-    const sh = getSheet(SHEET.REPORT);
-    const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
-
-    // ==========================================
-    // TIMESTAMP & DEFAULT VALUE
-    // ==========================================
-    const createdAt = now();
-    const status = "OPEN";
-    const prioritas = data.prioritas || "NORMAL";
-    const reportId = "BCS-" + Utilities.formatDate(new Date(), CONFIG.TIMEZONE, "yyyyMMdd-HHmmss");
-
-    // ==========================================
-    // UPLOAD FOTO
-    // ==========================================
-    let photoUrl = "";
-    let photoDownloadUrl = "";
-    let photoDriveUrl = "";
-
-    if (data.photo) {
-      const uploadResult = uploadPhoto(data.photo, data.filename);
-
-      if (!uploadResult.success) {
-        return failed("Upload foto gagal: " + uploadResult.message);
+    var required = ["nama", "departemen", "lokasi", "kategori", "deskripsi"];
+    for (var i = 0; i < required.length; i++) {
+      if (!data[required[i]]) {
+        return failed(required[i] + " wajib diisi.");
       }
-
-      // Gunakan URL yang kompatibel dengan History.js
-      photoUrl = uploadResult.url;
-      photoDownloadUrl = uploadResult.downloadUrl || "";
-      photoDriveUrl = uploadResult.driveUrl || "";
     }
 
-    // ==========================================
-    // RECORD OBJECT
-    // ==========================================
-    const record = {
+    // Ambil sheet REPORT
+    var sh = getSheet(SHEET.REPORT);
+    var headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+
+    var createdAt = now();
+    var reportId = "BCS-" + Utilities.formatDate(new Date(), CONFIG.TIMEZONE, "yyyyMMdd-HHmmss");
+
+    // Upload foto jika ada
+    var photoUrl = "";
+    if (data.photo) {
+      var upload = uploadPhoto(data.photo, data.filename);
+      if (!upload.success) {
+        return failed("Upload foto gagal: " + upload.message);
+      }
+      photoUrl = upload.url;
+    }
+
+    // Buat record
+    var record = {
       "ID": reportId,
       "Tanggal": createdAt,
       "Pelapor": data.nama || "",
       "Departemen": data.departemen || "",
       "Lokasi": data.lokasi || "",
       "Kategori": data.kategori || "",
-      "Prioritas": prioritas,
+      "Prioritas": data.prioritas || "NORMAL",
       "Deskripsi": data.deskripsi || "",
       "Foto": photoUrl,
-      "Status": status,
+      "Status": "OPEN",
       "Last Update": createdAt,
       "Teknisi": "",
       "Catatan Teknisi": "",
@@ -257,134 +446,29 @@ function saveReport(data) {
       "SLA": ""
     };
 
-    // ==========================================
-    // BUILD ROW BY HEADER & SAVE
-    // ==========================================
-    const rowData = headers.map(header => record[header] || "");
-    const nextRow = sh.getLastRow() + 1;
+    // Buat baris sesuai header
+    var rowData = headers.map(function(h) {
+      return record[h] || "";
+    });
 
-    sh.getRange(nextRow, 1, 1, rowData.length).setValues([rowData]);
+    sh.appendRow(rowData);
     SpreadsheetApp.flush();
 
-    // ==========================================
-    // RESPONSE
-    // ==========================================
     return success({
-      reportId,
-      status,
-      createdAt,
-      photoUrl,
-      downloadUrl: photoDownloadUrl,
-      driveUrl: photoDriveUrl,
-      message: "Report berhasil disimpan"
-    });
+      reportId: reportId,
+      status: "OPEN",
+      createdAt: createdAt,
+      photoUrl: photoUrl
+    }, "Report berhasil disimpan");
 
   } catch (err) {
     try {
-      saveError("saveReport()", err.stack || err.toString());
-    } catch (e) {
-      Logger.log(e);
-    }
+      saveError("saveReport()", err.toString());
+    } catch (e) {}
     return failed(err.toString());
   }
 }
-/**
- * =====================================================
- * VERSION API
- * =====================================================
- */
-function version() {
 
-  return success({
-
-    build: "20-06-2026-09:30",
-
-    app: CONFIG.APP.NAME,
-
-    version: CONFIG.APP.VERSION,
-
-    company: CONFIG.APP.COMPANY,
-
-    sheet: SHEET,
-
-    timezone: CONFIG.TIMEZONE,
-
-    serverTime: now()
-
-  });
-
-}
-
-/**
- * =====================================================
- * TEST ROUTER
- * =====================================================
- */
-function testVersion() {
-
-  Logger.log(
-
-    version().getContent()
-
-  );
-
-}
-
-function testHealth() {
-
-  Logger.log(
-
-    doGet({
-
-      parameter: {
-
-        action: "health"
-
-      }
-
-    }).getContent()
-
-  );
-
-}
-
-//  Tes 
-function testPost() {
-
-  const e = {
-    postData: {
-      contents: JSON.stringify({
-        action: "version",
-        data: {}
-      })
-    }
-  };
-
-
-  Logger.log(
-    doPost(e).getContent()
-  );
-
-}
-function testSaveReportAPI() {
-
-  const e = {
-    postData: {
-      contents: JSON.stringify({
-        action: "saveReport",
-        data: {
-          nama: "TEST",
-          departemen: "IT",
-          lokasi: "SERVER ROOM",
-          kategori: "LISTRIK",
-          deskripsi: "TEST"
-        }
-      })
-    }
-  };
-
-  const result = doPost(e);
-
-  Logger.log(result);
-
-}
+// =====================================================
+// AKHIR CODE.GS
+// =====================================================
