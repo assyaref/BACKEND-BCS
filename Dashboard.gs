@@ -134,6 +134,24 @@ function getDashboard(data) {
     );
 
     // ==========================================
+    // VARIABLE TREND (MINGGU LALU) - FIXED
+    // ==========================================
+
+    var currentDate = new Date();
+    var lastWeekStart = new Date(currentDate);
+    lastWeekStart.setDate(currentDate.getDate() - 7);
+    lastWeekStart.setHours(0,0,0,0);
+
+    var lastWeekEnd = new Date(currentDate);
+    lastWeekEnd.setDate(currentDate.getDate() - 1);
+    lastWeekEnd.setHours(23,59,59,999);
+
+    var lastWeekTotal = 0;
+    var lastWeekAc = 0;
+    var lastWeekListrik = 0;
+    var lastWeekGedung = 0;
+
+    // ==========================================
     // LOOP
     // ==========================================
 
@@ -141,8 +159,7 @@ function getDashboard(data) {
 
       if (!row[idx.id]) return;
 
-      total++;
-
+      var tanggal = new Date(row[idx.tanggal]);
       var kategori = String(row[idx.kategori] || "")
         .trim()
         .toUpperCase();
@@ -151,85 +168,71 @@ function getDashboard(data) {
         .trim()
         .toUpperCase();
 
-      var tanggal = new Date(row[idx.tanggal]);
+      // ==========================================
+      // TOTAL & CATEGORY
+      // ==========================================
 
-      // CATEGORY
+      total++;
 
       if (kategori === "AC") {
-
         ac++;
-
       } else if (kategori === "LISTRIK") {
-
         listrik++;
-
       } else {
-
         gedung++;
-
       }
 
+      // ==========================================
       // STATUS
+      // ==========================================
 
-      if (
-
-        status === "OPEN" ||
-        status === "WAITING"
-
-      ){
-
+      if (status === "OPEN" || status === "WAITING") {
         open++;
-
-      }
-
-      else if (
-
-        status === "PROGRESS" ||
-        status === "ON PROGRESS"
-
-      ){
-
+      } else if (status === "PROGRESS" || status === "ON PROGRESS") {
         progress++;
-
-      }
-
-      else if (
-
-        status === "DONE" ||
-        status === "COMPLETED" ||
-        status === "CLOSED"
-
-      ){
-
+      } else if (status === "DONE" || status === "COMPLETED" || status === "CLOSED") {
         done++;
-
       }
 
-      // DATE
+      // ==========================================
+      // TODAY & MONTHLY
+      // ==========================================
 
       if (!isNaN(tanggal.getTime())) {
 
-        if (
-
-          Utilities.formatDate(
-
-            tanggal,
-            String(TIMEZONE),
-            "yyyy-MM-dd"
-
-          ) === today
-
-        ){
-
+        if (Utilities.formatDate(tanggal, String(TIMEZONE), "yyyy-MM-dd") === today) {
           todayReport++;
-
         }
 
         monthly[tanggal.getMonth()]++;
 
       }
 
+      // ==========================================
+      // TREND (MINGGU LALU)
+      // ==========================================
+
+      if (tanggal >= lastWeekStart && tanggal <= lastWeekEnd) {
+        lastWeekTotal++;
+        if (kategori === "AC") {
+          lastWeekAc++;
+        } else if (kategori === "LISTRIK") {
+          lastWeekListrik++;
+        } else {
+          lastWeekGedung++;
+        }
+      }
+
     });
+
+    // ==========================================
+    // HITUNG TREND
+    // ==========================================
+
+    var totalTrend = total - lastWeekTotal;
+    var acTrend = ac - lastWeekAc;
+    var listrikTrend = listrik - lastWeekListrik;
+    var gedungTrend = gedung - lastWeekGedung;
 
     // ==========================================
     // RECENT ACTIVITY
@@ -308,10 +311,10 @@ function getDashboard(data) {
       progress: progress,
       done: done,
 
-      totalTrend: 0,
-      acTrend: 0,
-      listrikTrend: 0,
-      gedungTrend: 0,
+      totalTrend: totalTrend,
+      acTrend: acTrend,
+      listrikTrend: listrikTrend,
+      gedungTrend: gedungTrend,
 
       todayReport: todayReport,
 
@@ -324,7 +327,6 @@ function getDashboard(data) {
       monthly: monthly,
 
       serverTime: now(),
-
       lastUpdate: now()
 
     });
@@ -346,11 +348,78 @@ function getDashboard(data) {
   }
 
 }
+
+/**
+ * =====================================================
+ * GET ACTIVE USERS
+ * Sprint 19.7 - Online Users from ACTIVITY Sheet
+ * =====================================================
+ */
+function getActiveUsers() {
+  try {
+    const activitySheet = getSheet(SHEET.ACTIVITY);
+    const userSheet = getSheet(SHEET.USERS);
+
+    if (!activitySheet || !userSheet) {
+      return { success: false, message: "Sheet tidak ditemukan." };
+    }
+
+    const activityRows = activitySheet.getDataRange().getValues();
+    const userRows = userSheet.getDataRange().getValues();
+
+    // Build user map (email -> { nama, role, nik })
+    const userMap = {};
+    userRows.slice(1).forEach(row => {
+      const email = String(row[0] || '').trim().toLowerCase();
+      const nik = String(row[1] || '').trim();
+      const nama = String(row[2] || '').trim();
+      const role = String(row[4] || '').trim();
+      if (email) {
+        userMap[email] = { email, nik, nama, role };
+      }
+    });
+
+    // Ambil aktivitas 1 jam terakhir
+    const now = new Date();
+    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+
+    const activeEmails = {};
+    activityRows.slice(1).forEach(row => {
+      const email = String(row[1] || '').trim().toLowerCase();
+      const waktu = row[4]; // kolom waktu (index 4)
+      if (email && waktu instanceof Date && waktu >= oneHourAgo) {
+        activeEmails[email] = true;
+      }
+    });
+
+    // Bangun daftar user aktif
+    const activeUsers = Object.keys(activeEmails).map(email => {
+      const user = userMap[email] || { email, nama: email.split('@')[0], role: 'User' };
+      return {
+        email: email,
+        nama: user.nama || email.split('@')[0],
+        role: user.role || 'User',
+        nik: user.nik || '',
+        lastActive: now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+      };
+    });
+
+    return success({
+      activeUsers: activeUsers,
+      total: activeUsers.length
+    });
+
+  } catch (err) {
+    saveError("getActiveUsers()", err.toString());
+    return failed(err.toString());
+  }
+}
+
 /**
  * =====================================================
  * GET SUMMARY
  * Building Care System Enterprise v4.2 Stable
- * Sprint 9.1 Dashboard Analytics
+ * Sprint 9.1 Dashboard Analytics + Active Users
  * =====================================================
  */
 function getSummary() {
@@ -375,8 +444,14 @@ function getSummary() {
       return reportResponse;
     }
 
+    // ======================================
+    // ACTIVE USERS
+    // ======================================
+    const activeUsersResponse = getActiveUsers();
+
     const data = dashboard.data;
     const reports = reportResponse.data.reports || [];
+    const activeUsers = activeUsersResponse.success ? activeUsersResponse.data.activeUsers || [] : [];
 
     // ======================================
     // SLA COUNTER
@@ -417,7 +492,7 @@ function getSummary() {
       // PENDING
       pendingApproval: data.pendingApproval,
 
-      // ACTIVITY
+      // ACTIVITY (dari report)
       activity: data.activity || [],
 
       // MONTHLY CHART
@@ -425,7 +500,17 @@ function getSummary() {
 
       // SERVER
       serverTime: data.serverTime,
-      lastUpdate: data.lastUpdate
+      lastUpdate: data.lastUpdate,
+
+      // TRENDS
+      totalTrend: data.totalTrend || 0,
+      acTrend: data.acTrend || 0,
+      listrikTrend: data.listrikTrend || 0,
+      gedungTrend: data.gedungTrend || 0,
+
+      // 🔥 ACTIVE USERS
+      activeUsers: activeUsers,
+      onlineUser: activeUsers.length
 
     });
 
@@ -445,6 +530,7 @@ function getSummary() {
   }
 
 }
+
 /**
  * =====================================================
  * GET TOP TECHNICIAN
